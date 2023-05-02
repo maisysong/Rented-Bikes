@@ -1,0 +1,176 @@
+---
+title: "Final Project"
+author: "Maisy Song"
+date: "12/12/2021"
+output: pdf_document
+---
+
+##Final Project
+
+```{r library}
+library(ggplot2)
+library(faraway)
+library(ISLR)
+library(MASS)
+```
+
+```{r fileupload}
+directory = ("Documents/uiuc/finalproject2/")
+bikesdata = read.csv("bike_clean.csv")
+```
+
+## Point 1
+Fit a saturated model (first model) including all first order terms for your predictors.
+  - Pick one quantitative predictor, and interpret its fitted coefficient value.
+  - Pick one categorical predictor, and interpret its fitted coefficient(s).  Be sure to specify the baseline level.
+  
+```{r}
+bikes = subset(bikesdata, select = -c(X))
+bikes = subset(bikes, select = c(Month, TemperatureC, Rented.Bike.Count, Hour, Humidity, Wind.speed.ms, Rainfallmm, Solar.Radiation..MJ.m2., Seasons))
+# I have made some corrections/changes to variable names so printing out for some convenience
+names(bikes)
+```
+
+
+```{r}
+ggplot(bikes, mapping = aes(x = TemperatureC, y = Rented.Bike.Count)) + geom_point()
+# round(cor(bikedata),4)
+```
+
+```{r}
+firstmodel = lm(Rented.Bike.Count ~ ., bikes)
+summary(firstmodel)
+```
+ 
+Here we can see how that there are some of the variables that aren't necessary/significant at level alpha = 0.05
+
+```{r}
+secondmodel = lm(Rented.Bike.Count ~ Hour + TemperatureC + Humidity + 
+                   Solar.Radiation..MJ.m2. + Rainfallmm + Seasons, bikes)
+summary(secondmodel)
+```
+
+```{r}
+newbikes = subset(bikes, select = c(Rented.Bike.Count, Hour, TemperatureC, Humidity, Solar.Radiation..MJ.m2., Rainfallmm, Seasons))
+
+second_order_model = lm(Rented.Bike.Count ~ .^2, newbikes)
+# summary(second_order_model)
+
+temp_model = lm(Rented.Bike.Count ~ . + Hour * TemperatureC, newbikes) # adj R^2 = 0.6135
+# summary(temp_model)
+
+test_model = lm(Rented.Bike.Count ~ . + TemperatureC * Humidity, newbikes)
+# summary(test_model)
+
+test_model2 = lm(Rented.Bike.Count ~ . + TemperatureC * Humidity + Hour * TemperatureC, newbikes)
+summary(test_model2)
+```
+
+
+```{r}
+# anova(lm(Rented.Bike.Count ~ 1, bikes), secondmodel)
+# anova(secondmodel, firstmodel)
+
+
+# # one interaction term added:
+# anova(secondmodel, test_model)
+# # two interaction terms added:
+anova(secondmodel, test_model2)
+# # we can see that the two interaction terms added model is more significant
+```
+
+```{r}
+aic_backwards = step(test_model2, direction = 'backward')
+finalmodel = lm(Rented.Bike.Count ~ Hour + TemperatureC + Humidity + Solar.Radiation..MJ.m2. + Rainfallmm + Seasons + TemperatureC * Humidity + Hour * TemperatureC, newbikes)
+summary(finalmodel)
+```
+
+Here we can see that my final model is:
+Rented.Bike.Count ~ Hour + TemperatureC + Humidity + Solar.Radiation..MJ.m2. + Rainfallmm + Seasons + TemperatureC * Humidity + Hour * TemperatureC
+
+## Collinearity
+```{r}
+# here we want to omit categorical variable
+firstmodel_nocat = lm(Rented.Bike.Count ~ . - Seasons, bikes)
+finalmodel_nocat = lm(Rented.Bike.Count ~ Hour + TemperatureC + Humidity + Solar.Radiation..MJ.m2. + 
+    Rainfallmm + TemperatureC * Humidity + Hour * TemperatureC, newbikes)
+vif(firstmodel_nocat)
+vif(finalmodel_nocat)
+```
+From the first model, I am not necessarily concerned about collinearity since all variables have vif values less than 10.
+However, I can see how I can be concerned about collinearity of TemperatureC:Humidity and Hour:Temperature.
+
+```{r}
+summary(firstmodel)$adj.r.squared
+summary(finalmodel)$adj.r.squared
+```
+
+
+## Unusual Points
+```{r}
+# plot(firstmodel)
+plot(finalmodel)
+```
+
+## Boxcox
+```{r}
+boxcox(finalmodel, plotit = TRUE, lambda = seq(0, 0.5, 0.1))
+
+transformed_mod = lm(((Rented.Bike.Count ^0.4 - 1)/0.4) ~ Hour + TemperatureC + Humidity + Solar.Radiation..MJ.m2. + Rainfallmm + Seasons + TemperatureC * Humidity + Hour * TemperatureC, newbikes)
+
+plot(transformed_mod)
+summary(transformed_mod)
+```
+
+## Statistical Test
+```{r}
+summary(finalmodel)
+summary(transformed_mod)
+```
+
+```{r}
+summary(firstmodel)$adj.r.squared
+summary(transformed_mod)$adj.r.squared
+```
+
+```{r}
+trans_nocat = lm(((Rented.Bike.Count ^0.4 - 1)/0.4) ~ Hour + TemperatureC + Humidity + Solar.Radiation..MJ.m2. + Rainfallmm + TemperatureC * Humidity + Hour * TemperatureC, newbikes)
+vif(trans_nocat)
+```
+
+##RMSE
+```{r}
+sqrt(mean(resid(firstmodel) ^ 2))
+sqrt(mean(resid(finalmodel) ^ 2))
+sqrt(mean(resid(transformed_mod) ^ 2))
+```
+
+```{r}
+# ggplot(bikes, mapping = aes(x = Solar.Radiation..MJ.m2., y = Rented.Bike.Count)) + geom_point()
+
+mod2 = lm(((Rented.Bike.Count ^0.4 - 1)/0.4) ~ Hour + poly(TemperatureC,4) + Humidity + Solar.Radiation..MJ.m2. + Rainfallmm + Seasons + TemperatureC * Humidity + Hour * TemperatureC, newbikes)
+# summary(mod2)
+# plot(mod2)
+# anova(transformed_mod, mod2)
+# aic_backwards = step(mod2, direction = 'backward')
+mod2_nocat = lm(((Rented.Bike.Count ^0.4 - 1)/0.4) ~ Hour + poly(TemperatureC,4) + Humidity + Solar.Radiation..MJ.m2. + Rainfallmm + TemperatureC * Humidity + Hour * TemperatureC, newbikes)
+```
+
+
+## Try fitting one of the values
+```{r}
+transformed_mod$coefficients
+point1 = data.frame(Hour = 15, TemperatureC = -2.1, Humidity = 20, Solar.Radiation..MJ.m2. = 1.87, Rainfallmm = 0, Seasons = "Winter")
+
+y = 33.492523097 + 0.384363947*point1$Hour + 0.408831369*point1$TemperatureC + -0.158968974*point1$Humidity + -0.937375254*point1$Solar.Radiation..MJ.m2.+ -1.308151968*point1$Rainfallmm + -0.002862839*point1$Humidity*point1$TemperatureC + 0.013283877*point1$Hour*point1$TemperatureC -11.082664910
+((y*0.4) + 1)**(1/0.4)
+# (Rented.Bike.Count ^0.4 - 1)/0.4)
+vif(trans_nocat)
+```
+
+
+
+
+
+
+
